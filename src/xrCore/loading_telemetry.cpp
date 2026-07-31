@@ -145,6 +145,23 @@ namespace
 		json << "}";
 		emit_line(json.str().c_str());
 	}
+
+	LoadingTelemetryToken begin_detached_session_span(LPCSTR task_id)
+	{
+		LoadingTelemetryToken token;
+		if (!LoadingTelemetry::DetailedEnabled() || !g_session_token.active)
+			return token;
+
+		token.span_id = g_next_span_id.fetch_add(1);
+		token.session_id = g_active_session.load();
+		token.start_ticks = ticks_now();
+		token.parent_span_id = g_session_token.span_id;
+		token.task_id = task_id;
+		token.parent_task_id = g_session_token.task_id;
+		token.thread_id = GetCurrentThreadId();
+		token.active = true;
+		return token;
+	}
 }
 
 LoadingTelemetryToken::LoadingTelemetryToken() :
@@ -305,8 +322,15 @@ void LoadingTelemetry::EndSpan(LoadingTelemetryToken& token, u64 units, u64 byte
 		return;
 
 	const u64 end_ticks = ticks_now();
-	if (g_depth && g_stack[g_depth - 1].task_id == token.task_id)
+	for (u32 index = g_depth; index > 0; --index)
+	{
+		if (g_stack[index - 1].span_id != token.span_id)
+			continue;
+		for (u32 move = index; move < g_depth; ++move)
+			g_stack[move - 1] = g_stack[move];
 		--g_depth;
+		break;
+	}
 
 	std::ostringstream json;
 	json.setf(std::ios::fixed);
@@ -362,7 +386,7 @@ void LoadingTelemetry::MarkEngineLoadEnd()
 		return;
 	Instant("loading.engine_load_end");
 	if (!g_post_load_wait_token.active)
-		g_post_load_wait_token = BeginSpan("activation.post_load_precache_wait");
+		g_post_load_wait_token = begin_detached_session_span("activation.post_load_precache_wait");
 }
 
 void LoadingTelemetry::MarkFirstDestinationFrame()
