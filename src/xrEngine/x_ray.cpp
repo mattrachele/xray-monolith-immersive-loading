@@ -1578,7 +1578,7 @@ void CApplication::LoadEnd()
 		Msg("* phase cmem: %lld K", Memory.mem_usage() / 1024);
 		Console->Execute("stat_memory");
 		g_appLoaded = TRUE;
-		LoadingTelemetry::Instant("loading.engine_load_end");
+		LoadingTelemetry::MarkEngineLoadEnd();
 		// DUMP_PHASE;
 	}
 }

@@ -34,6 +34,7 @@ namespace
 	std::atomic<u64> g_active_session(0);
 	u64 g_session_start_ticks = 0;
 	LoadingTelemetryToken g_session_token;
+	LoadingTelemetryToken g_post_load_wait_token;
 	bool g_first_loading_frame = false;
 	bool g_first_destination_frame = false;
 	bool g_player_input_ready = false;
@@ -255,6 +256,7 @@ void LoadingTelemetry::EndSession(LoadingTelemetryToken& token)
 	g_active_session.store(0);
 	g_session_start_ticks = 0;
 	g_session_token = LoadingTelemetryToken();
+	g_post_load_wait_token = LoadingTelemetryToken();
 }
 
 void LoadingTelemetry::EndActiveSession()
@@ -354,6 +356,15 @@ void LoadingTelemetry::MarkFirstLoadingFrame()
 	EndSpan(token);
 }
 
+void LoadingTelemetry::MarkEngineLoadEnd()
+{
+	if (!Enabled())
+		return;
+	Instant("loading.engine_load_end");
+	if (!g_post_load_wait_token.active)
+		g_post_load_wait_token = BeginSpan("activation.post_load_precache_wait");
+}
+
 void LoadingTelemetry::MarkFirstDestinationFrame()
 {
 	if (!Enabled() || g_first_destination_frame)
@@ -367,6 +378,7 @@ void LoadingTelemetry::MarkPlayerInputReady()
 	if (!Enabled() || g_player_input_ready)
 		return;
 	g_player_input_ready = true;
+	EndSpan(g_post_load_wait_token);
 	Instant("loading.player_input_ready");
 }
 

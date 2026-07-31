@@ -34,6 +34,7 @@ public:
 	static void Instant(LPCSTR task_id, LPCSTR value = nullptr);
 
 	static void MarkFirstLoadingFrame();
+	static void MarkEngineLoadEnd();
 	static void MarkFirstDestinationFrame();
 	static void MarkPlayerInputReady();
 	static void RecordLoadingFrame();
