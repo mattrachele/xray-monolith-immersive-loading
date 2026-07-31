@@ -5,6 +5,8 @@
 #include "../xrCore/profiler.h"
 #include "../xrCore/loading_telemetry.h"
 
+extern ENGINE_API BOOL g_appLoaded;
+
 #pragma warning(disable:4995)
 // mmsystem.h
 #define MMNOSOUND
@@ -127,8 +129,6 @@ void CRenderDevice::End(void)
 
 		if (!dwPrecacheFrame)
 		{
-			LoadingTelemetry::MarkPlayerInputReady();
-			LoadingTelemetry::EndActiveSession();
 #ifdef INGAME_EDITOR
             load_finished = true;
 #endif // #ifdef INGAME_EDITOR
@@ -171,6 +171,15 @@ void CRenderDevice::End(void)
 	if (g_SASH.IsBenchmarkRunning())
 		g_SASH.DisplayFrame(Device.fTimeGlobal);
 	m_pRender->End();
+	if (g_appLoaded && LoadingTelemetry::HasActiveSession())
+	{
+		LoadingTelemetry::MarkFirstDestinationFrame();
+		if (!dwPrecacheFrame)
+		{
+			LoadingTelemetry::MarkPlayerInputReady();
+			LoadingTelemetry::EndActiveSession();
+		}
+	}
 
 # ifdef INGAME_EDITOR
     if (load_finished && m_editor)
@@ -372,16 +381,6 @@ void CRenderDevice::on_idle()
 		PROF_EVENT("LoadDraw");
 		pApp->LoadDraw();
 		return;
-	}
-
-	if (g_appLoaded && LoadingTelemetry::HasActiveSession())
-	{
-		LoadingTelemetry::MarkFirstDestinationFrame();
-		if (!dwPrecacheFrame)
-		{
-			LoadingTelemetry::MarkPlayerInputReady();
-			LoadingTelemetry::EndActiveSession();
-		}
 	}
 
 	if (!Device.dwPrecacheFrame && !g_SASH.IsBenchmarkRunning() && g_bLoaded)

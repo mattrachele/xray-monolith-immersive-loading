@@ -31,7 +31,7 @@ namespace
 	xr_vector<xr_string> g_pending_lines;
 	LARGE_INTEGER g_frequency = {};
 	LARGE_INTEGER g_origin = {};
-	u64 g_active_session = 0;
+	std::atomic<u64> g_active_session(0);
 	u64 g_session_start_ticks = 0;
 	LoadingTelemetryToken g_session_token;
 	bool g_first_loading_frame = false;
@@ -135,7 +135,7 @@ namespace
 		json.precision(3);
 		json << "{\"schema_version\":" << kSchemaVersion
 			<< ",\"record\":\"instant\""
-			<< ",\"session_id\":" << g_active_session
+			<< ",\"session_id\":" << g_active_session.load()
 			<< ",\"task_id\":\"" << json_escape(task_id).c_str() << "\""
 			<< ",\"timestamp_ms\":" << ticks_to_ms(timestamp_ticks - static_cast<u64>(g_origin.QuadPart))
 			<< ",\"thread_id\":" << GetCurrentThreadId();
@@ -225,10 +225,10 @@ LoadingTelemetryToken LoadingTelemetry::BeginSession(LPCSTR session_kind)
 {
 	if (!Enabled())
 		return LoadingTelemetryToken();
-	if (g_active_session)
+	if (g_active_session.load())
 		return g_session_token;
 
-	g_active_session = g_next_session_id.fetch_add(1);
+	g_active_session.store(g_next_session_id.fetch_add(1));
 	g_session_start_ticks = ticks_now();
 	g_first_loading_frame = false;
 	g_first_destination_frame = false;
@@ -252,7 +252,7 @@ void LoadingTelemetry::EndSession(LoadingTelemetryToken& token)
 		if (g_output.is_open())
 			g_output.flush();
 	}
-	g_active_session = 0;
+	g_active_session.store(0);
 	g_session_start_ticks = 0;
 	g_session_token = LoadingTelemetryToken();
 }
@@ -265,7 +265,7 @@ void LoadingTelemetry::EndActiveSession()
 
 bool LoadingTelemetry::HasActiveSession()
 {
-	return g_active_session != 0;
+	return g_active_session.load() != 0;
 }
 
 LoadingTelemetryToken LoadingTelemetry::BeginSpan(LPCSTR task_id)
@@ -280,7 +280,7 @@ LoadingTelemetryToken LoadingTelemetry::BeginSpan(LPCSTR task_id)
 		QueryPerformanceCounter(&g_origin);
 
 	token.span_id = g_next_span_id.fetch_add(1);
-	token.session_id = g_active_session;
+	token.session_id = g_active_session.load();
 	token.start_ticks = ticks_now();
 	token.task_id = task_id;
 	token.parent_span_id = g_depth ? g_stack[g_depth - 1].span_id : 0;
@@ -382,7 +382,7 @@ void LoadingTelemetry::RecordLoadingFrame()
 		json.precision(3);
 		json << "{\"schema_version\":" << kSchemaVersion
 			<< ",\"record\":\"loading_frame\""
-			<< ",\"session_id\":" << g_active_session
+			<< ",\"session_id\":" << g_active_session.load()
 			<< ",\"timestamp_ms\":" << ticks_to_ms(now - static_cast<u64>(g_origin.QuadPart))
 			<< ",\"interval_ms\":" << ticks_to_ms(now - g_last_loading_frame_ticks)
 			<< "}";
@@ -398,7 +398,7 @@ void LoadingTelemetry::RecordProgress(u64 completed, u64 total)
 	std::ostringstream json;
 	json << "{\"schema_version\":" << kSchemaVersion
 		<< ",\"record\":\"progress\""
-		<< ",\"session_id\":" << g_active_session
+		<< ",\"session_id\":" << g_active_session.load()
 		<< ",\"completed\":" << completed
 		<< ",\"total\":" << total
 		<< "}";

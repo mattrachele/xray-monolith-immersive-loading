@@ -1603,8 +1603,6 @@ PROTECT_API void CApplication::LoadDraw()
 	PROF_EVENT();
 
 	if (g_appLoaded) return;
-	LoadingTelemetry::MarkFirstLoadingFrame();
-	LoadingTelemetry::RecordLoadingFrame();
 	Device.dwFrame += 1;
 
 
@@ -1616,6 +1614,8 @@ PROTECT_API void CApplication::LoadDraw()
 		load_draw_internal();
 
 	Device.End();
+	LoadingTelemetry::MarkFirstLoadingFrame();
+	LoadingTelemetry::RecordLoadingFrame();
 }
 
 void CApplication::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)
