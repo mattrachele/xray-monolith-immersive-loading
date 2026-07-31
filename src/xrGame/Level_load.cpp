@@ -17,11 +17,13 @@
 #include "character_reputation.h"
 #include "monster_community.h"
 #include "HudManager.h"
+#include "../xrCore/loading_telemetry.h"
 
 extern ENGINE_API bool g_dedicated_server;
 
 bool CLevel::Load_GameSpecific_Before()
 {
+	LOADING_TELEMETRY_SCOPE("ai.level_initialize");
 	// AI space
 	//	g_pGamePersistent->LoadTitle		("st_loading_ai_objects");
 	g_pGamePersistent->LoadTitle();
@@ -48,11 +50,13 @@ bool CLevel::Load_GameSpecific_Before()
 
 bool CLevel::Load_GameSpecific_After()
 {
+	LOADING_TELEMETRY_SCOPE("level.post_objects");
 	R_ASSERT(m_StaticParticles.empty());
 	// loading static particles
 	string_path fn_game;
 	if (FS.exist(fn_game, "$level$", "level.ps_static"))
 	{
+		LOADING_TELEMETRY_SCOPE("particles.static");
 		IReader* F = FS.r_open(fn_game);
 
 		u32 chunk = 0;
@@ -96,6 +100,7 @@ bool CLevel::Load_GameSpecific_After()
 
 	if (!g_dedicated_server)
 	{
+		LOADING_TELEMETRY_SCOPE("sound.level");
 		// loading static sounds
 		VERIFY(m_level_sound_manager);
 		m_level_sound_manager->Load();
@@ -222,6 +227,8 @@ struct translation_pair
 
 void CLevel::Load_GameSpecific_CFORM(CDB::TRI* tris, u32 count)
 {
+	LoadingTelemetryScope material_scope("level.cform_materials");
+	material_scope.SetUnits(count);
 	typedef xr_vector<translation_pair> ID_INDEX_PAIRS;
 	ID_INDEX_PAIRS translator;
 	translator.reserve(GMLib.CountMaterial());

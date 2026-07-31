@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "loading_telemetry.h"
 #pragma hdrstop
 
 #pragma warning(disable:4995)
@@ -338,6 +339,8 @@ IReader* open_chunk(void* ptr, u32 ID)
 
 void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 {
+	LoadingTelemetryScope index_scope("filesystem.archive_index_construction");
+	const size_t files_before = m_files.size();
 	// Create base path
 	string_path fs_entry_point;
 	fs_entry_point[0] = 0;
@@ -432,6 +435,7 @@ void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 		Register(full, A.vfs_idx, crc, ptr, size_real, size_compr, 0);
 	}
 	hdr->close();
+	index_scope.SetUnits(m_files.size() - files_before);
 
 	// if(g_temporary_stuff_subst)
 	// g_temporary_stuff = g_temporary_stuff_subst;
@@ -461,6 +465,7 @@ void CLocatorAPI::archive::close()
 
 void CLocatorAPI::ProcessArchive(LPCSTR _path)
 {
+	LOADING_TELEMETRY_SCOPE("filesystem.archive_enumeration");
 	// find existing archive
 	shared_str path = _path;
 
@@ -747,6 +752,7 @@ IReader* CLocatorAPI::setup_fs_ltx(LPCSTR fs_name)
 
 void CLocatorAPI::_initialize(u32 flags, LPCSTR target_folder, LPCSTR fs_name)
 {
+	LoadingTelemetryScope filesystem_scope("filesystem.initialize");
 	char _delimiter = '|'; //','
 	if (m_Flags.is(flReady))return;
 	CTimer t;
@@ -774,6 +780,7 @@ void CLocatorAPI::_initialize(u32 flags, LPCSTR target_folder, LPCSTR fs_name)
 	}
 	else
 	{
+		LoadingTelemetryScope configuration_scope("filesystem.path_configuration");
 		IReader* pFSltx = setup_fs_ltx(fs_name);
 		// append all pathes    
 		string_path id, root, add, def, capt;
@@ -781,61 +788,60 @@ void CLocatorAPI::_initialize(u32 flags, LPCSTR target_folder, LPCSTR fs_name)
 		string16 b_v;
 		string4096 temp;
 
-		while (!pFSltx->eof())
 		{
-			pFSltx->r_string(buf, sizeof(buf));
-			if (buf[0] == ';') continue;
-
-			_GetItem(buf, 0, id, '=');
-
-			if (!m_Flags.is(flBuildCopy) && (0 == xr_strcmp(id, "$build_copy$")))
-				continue;
-
-			_GetItem(buf, 1, temp, '=');
-			int cnt = _GetItemCount(temp, _delimiter);
-			R_ASSERT2(cnt >= 3, temp);
-			u32 fl = 0;
-			_GetItem(temp, 0, b_v, _delimiter);
-
-			if (CInifile::IsBOOL(b_v))
-				fl |= FS_Path::flRecurse;
-
-			_GetItem(temp, 1, b_v, _delimiter);
-			if (CInifile::IsBOOL(b_v))
-				fl |= FS_Path::flNotif;
-
-			_GetItem(temp, 2, root, _delimiter);
-			_GetItem(temp, 3, add, _delimiter);
-			_GetItem(temp, 4, def, _delimiter);
-			_GetItem(temp, 5, capt, _delimiter);
-			xr_strlwr(id);
-
-			xr_strlwr(root);
-			lp_add = (cnt >= 4) ? xr_strlwr(add) : nullptr;
-			lp_def = (cnt >= 5) ? def : nullptr;
-			lp_capt = (cnt >= 6) ? capt : nullptr;
-
-			auto p_it = pathes.find(root);
-
-			if (p_it == pathes.end() && xr_strcmp(root, "$fs_root$") == 0)
+			LoadingTelemetryScope index_scope("filesystem.discovery_and_index");
+			while (!pFSltx->eof())
 			{
-				//Old good fsltx
-				//replace root with predefined path
-				//xr_strcpy(root, fsRoot.generic_string().c_str());
-				FS_Path* P = new FS_Path(xr_strdup(fsRoot.generic_string().c_str()), nullptr, nullptr, nullptr, 0);
-				pathes.insert(std::make_pair(xr_strdup("$fs_root$"), P));
-				p_it = pathes.find(root);
-			}
+				pFSltx->r_string(buf, sizeof(buf));
+				if (buf[0] == ';') continue;
 
-			FS_Path* P = new FS_Path((p_it != pathes.end()) ? p_it->second->m_Path : root, lp_add, lp_def, lp_capt, fl);
-			bNoRecurse = !(fl & FS_Path::flRecurse);
-			Recurse(P->m_Path);
-			auto I = pathes.insert(std::make_pair(xr_strdup(id), P));
+				_GetItem(buf, 0, id, '=');
+
+				if (!m_Flags.is(flBuildCopy) && (0 == xr_strcmp(id, "$build_copy$")))
+					continue;
+
+				_GetItem(buf, 1, temp, '=');
+				int cnt = _GetItemCount(temp, _delimiter);
+				R_ASSERT2(cnt >= 3, temp);
+				u32 fl = 0;
+				_GetItem(temp, 0, b_v, _delimiter);
+
+				if (CInifile::IsBOOL(b_v))
+					fl |= FS_Path::flRecurse;
+
+				_GetItem(temp, 1, b_v, _delimiter);
+				if (CInifile::IsBOOL(b_v))
+					fl |= FS_Path::flNotif;
+
+				_GetItem(temp, 2, root, _delimiter);
+				_GetItem(temp, 3, add, _delimiter);
+				_GetItem(temp, 4, def, _delimiter);
+				_GetItem(temp, 5, capt, _delimiter);
+				xr_strlwr(id);
+
+				xr_strlwr(root);
+				lp_add = (cnt >= 4) ? xr_strlwr(add) : nullptr;
+				lp_def = (cnt >= 5) ? def : nullptr;
+				lp_capt = (cnt >= 6) ? capt : nullptr;
+
+				auto p_it = pathes.find(root);
+
+				if (p_it == pathes.end() && xr_strcmp(root, "$fs_root$") == 0)
+				{
+					FS_Path* P = new FS_Path(xr_strdup(fsRoot.generic_string().c_str()), nullptr, nullptr, nullptr, 0);
+					pathes.insert(std::make_pair(xr_strdup("$fs_root$"), P));
+					p_it = pathes.find(root);
+				}
+
+				FS_Path* P = new FS_Path((p_it != pathes.end()) ? p_it->second->m_Path : root, lp_add, lp_def, lp_capt, fl);
+				bNoRecurse = !(fl & FS_Path::flRecurse);
+				Recurse(P->m_Path);
+				pathes.insert(std::make_pair(xr_strdup(id), P));
 #ifndef DEBUG
-			m_Flags.set(flCacheFiles, FALSE);
+				m_Flags.set(flCacheFiles, FALSE);
 #endif // DEBUG
-
-			//CHECK_OR_EXIT		(I.second,"The file 'fsgame.ltx' is corrupted (it contains duplicated lines).\nPlease reinstall the game or fix the problem manually.");
+			}
+			index_scope.SetUnits(m_files.size());
 		}
 		r_close(pFSltx);
 		R_ASSERT(path_exist("$app_data_root$"));
@@ -868,6 +874,8 @@ void CLocatorAPI::_initialize(u32 flags, LPCSTR target_folder, LPCSTR fs_name)
 
 	rec_files.clear();
 	//-----------------------------------------------------------
+	filesystem_scope.SetUnits(m_files.size());
+	LoadingTelemetry::InitializeOutput();
 
 	if (!Core.ParamsData.test(ECoreParams::nolog))
 	{

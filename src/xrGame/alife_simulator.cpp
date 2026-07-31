@@ -16,6 +16,7 @@
 #include "object_factory.h"
 #include "alife_object_registry.h"
 #include "../xrEngine/xr_ioconsole.h"
+#include "../xrCore/loading_telemetry.h"
 
 #ifdef DEBUG
 #	include "moving_objects.h"
@@ -28,12 +29,16 @@ extern void destroy_lua_wpn_params();
 void restart_all()
 {
 	PROF_EVENT("restart_all");
+	LOADING_TELEMETRY_SCOPE("lua.lifecycle.restart");
 	if (Core.ParamsData.test(ECoreParams::keep_lua))
 		return;
 
-	destroy_lua_wpn_params();
-	MainMenu()->DestroyInternal(true);
-	xr_delete(g_object_factory);
+	{
+		LOADING_TELEMETRY_SCOPE("lua.lifecycle.destroy");
+		destroy_lua_wpn_params();
+		MainMenu()->DestroyInternal(true);
+		xr_delete(g_object_factory);
+	}
 	ai().script_engine().init();
 
 #ifdef DEBUG
@@ -47,6 +52,7 @@ CALifeSimulator::CALifeSimulator(xrServer* server, shared_str* command_line) :
 	CALifeSimulatorBase(server, alife_section)
 {
 	PROF_EVENT("CALifeSimulator::CALifeSimulator");
+	LOADING_TELEMETRY_SCOPE("alife.initialize");
 	restart_all();
 
 	ai().set_alife(this);

@@ -6,6 +6,7 @@
 #include <mmsystem.h>
 #include <objbase.h>
 #include "xrCore.h"
+#include "loading_telemetry.h"
 
 #pragma comment(lib,"winmm.lib")
 
@@ -163,6 +164,7 @@ void xrCore::_destroy()
 	--init_counter;
 	if (0 == init_counter)
 	{
+		LoadingTelemetry::Shutdown();
 		FS._destroy();
 		EFS._destroy();
 		xr_delete(xr_FS);

@@ -483,11 +483,13 @@ void CHUDManager::SetGrenadeMarkType(LPCSTR tex_name)
 // ------------------------------------------------------------------------------------
 
 #include "ui\UIMainInGameWnd.h"
+#include "../xrCore/loading_telemetry.h"
 extern CUIXml* pWpnScopeXml;
 extern CUIXml* g_uiSpotXml;
 
 void CHUDManager::Load()
 {
+	LOADING_TELEMETRY_SCOPE("hud.load");
 	if (!pUIGame)
 	{
 		pUIGame = Game().createGameUI();

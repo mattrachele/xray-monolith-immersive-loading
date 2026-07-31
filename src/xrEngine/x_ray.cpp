@@ -29,6 +29,7 @@
 #include <unicode\ucnv.h>
 #include <discord\discord.h>
 #include "../xrCore/profiler.h"
+#include "../xrCore/loading_telemetry.h"
 
 #include "xrSash.h"
 #include "MonitorList.h"
@@ -1551,6 +1552,7 @@ void CApplication::LoadBegin()
 	ll_dwReference++;
 	if (1 == ll_dwReference)
 	{
+		LoadingTelemetry::BeginSession("loading.total");
 		g_appLoaded = FALSE;
 
 		//AVO:
@@ -1576,6 +1578,7 @@ void CApplication::LoadEnd()
 		Msg("* phase cmem: %lld K", Memory.mem_usage() / 1024);
 		Console->Execute("stat_memory");
 		g_appLoaded = TRUE;
+		LoadingTelemetry::Instant("loading.engine_load_end");
 		// DUMP_PHASE;
 	}
 }
@@ -1600,6 +1603,8 @@ PROTECT_API void CApplication::LoadDraw()
 	PROF_EVENT();
 
 	if (g_appLoaded) return;
+	LoadingTelemetry::MarkFirstLoadingFrame();
+	LoadingTelemetry::RecordLoadingFrame();
 	Device.dwFrame += 1;
 
 
@@ -1633,6 +1638,7 @@ void CApplication::LoadStage()
 		max_load_stage = 17;
 	else
 		max_load_stage = 14;
+	LoadingTelemetry::RecordProgress(load_stage, max_load_stage);
 	LoadDraw();
 }
 

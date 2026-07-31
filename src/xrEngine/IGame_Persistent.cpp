@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../xrCore/loading_telemetry.h"
 #pragma hdrstop
 
 #include "IGame_Persistent.h"
@@ -134,6 +135,7 @@ void IGame_Persistent::PreStart(LPCSTR op)
 
 void IGame_Persistent::Start(LPCSTR op)
 {
+	LOADING_TELEMETRY_SCOPE("game_persistent.start");
 	string256 prev_type;
 	xr_strcpy(prev_type, m_game_params.m_game_type);
 	m_game_params.parse_cmd_line(op);
@@ -165,6 +167,7 @@ void IGame_Persistent::Disconnect()
 
 void IGame_Persistent::OnGameStart()
 {
+	LOADING_TELEMETRY_SCOPE("game_persistent.on_game_start");
 #ifndef _EDITOR
 	// LoadTitle("st_prefetching_objects");
 	LoadTitle();
@@ -177,6 +180,7 @@ xr_task_group prefetch_task;
 #ifndef _EDITOR
 void IGame_Persistent::Prefetch()
 {
+	LOADING_TELEMETRY_SCOPE("resources.prefetch");
 	Msg("* [x-ray]: Prefetching Data");
 	// prefetch game objects & models
 	float p_time = 1000.f * Device.GetTimerGlobal()->GetElapsed_sec();
@@ -189,11 +193,13 @@ void IGame_Persistent::Prefetch()
 	{
 		{
 			PROF_EVENT("Prefetch Loading models");
+			LOADING_TELEMETRY_SCOPE("resources.prefetch.models");
 			Log("Loading models...");
 			Render->models_Prefetch();
 		}
 		{
 			PROF_EVENT("Loading textures");
+			LOADING_TELEMETRY_SCOPE("resources.prefetch.textures");
 			Log("Loading textures...");
 
 			const auto loadFileFolder = [&](LPCSTR _folder)
@@ -255,6 +261,7 @@ void IGame_Persistent::Prefetch()
 	{
 		// prefetch game objects & models
 		PROF_EVENT("Loading objects");
+		LOADING_TELEMETRY_SCOPE("resources.prefetch.objects");
 		Log("Loading objects...");
 		ObjectPool.prefetch();
 	}

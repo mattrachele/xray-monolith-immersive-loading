@@ -13,6 +13,7 @@
 #include "feel_sound.h"
 
 #include "../xrCore/profiler.h"
+#include "../xrCore/loading_telemetry.h"
 
 //#include "securom_api.h"
 
@@ -92,6 +93,7 @@ xrCriticalSection lloadcs;
 bool IGame_Level::Load(u32 dwNum)
 {
 	PROF_EVENT("IGame_Level::Load");
+	LOADING_TELEMETRY_SCOPE("level.load");
 	xrCriticalSectionGuard guard(&lloadcs);
 	if (bReady) return TRUE;
 	extern xr_task_group prefetch_task;
@@ -99,16 +101,23 @@ bool IGame_Level::Load(u32 dwNum)
 	//SECUROM_MARKER_PERFORMANCE_ON(10)
 
 	// Initialize level data
-	pApp->Level_Set(dwNum);
-	string_path temp;
-	if (!FS.exist(temp, "$level$", "level.ltx"))
-		Debug.fatal(DEBUG_INFO, "Can't find level configuration file '%s'.", temp);
-	pLevel = xr_new<CInifile>(temp);
+	{
+		LOADING_TELEMETRY_SCOPE("level.configuration");
+		pApp->Level_Set(dwNum);
+		string_path temp;
+		if (!FS.exist(temp, "$level$", "level.ltx"))
+			Debug.fatal(DEBUG_INFO, "Can't find level configuration file '%s'.", temp);
+		pLevel = xr_new<CInifile>(temp);
+	}
 
 	// Open
 	// g_pGamePersistent->LoadTitle ("st_opening_stream");
 	g_pGamePersistent->LoadTitle();
-	IReader* LL_Stream = FS.r_open("$level$", "level");
+	IReader* LL_Stream;
+	{
+		LOADING_TELEMETRY_SCOPE("level.data_open");
+		LL_Stream = FS.r_open("$level$", "level");
+	}
 	IReader& fs = *LL_Stream;
 
 	// Header
@@ -119,7 +128,10 @@ bool IGame_Level::Load(u32 dwNum)
 	// CForms
 	// g_pGamePersistent->LoadTitle ("st_loading_cform");
 	g_pGamePersistent->LoadTitle();
-	ObjectSpace.Load( [](Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt, void* params){g_pGameLevel->Load_GameSpecific_CFORM(T, Tcnt);});
+	{
+		LOADING_TELEMETRY_SCOPE("level.cform_collision");
+		ObjectSpace.Load( [](Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt, void* params){g_pGameLevel->Load_GameSpecific_CFORM(T, Tcnt);});
+	}
 	//Sound->set_geometry_occ ( &Static );
 	Sound->set_geometry_occ(ObjectSpace.GetStaticModel());
 	Sound->set_handler(_sound_event);
@@ -132,14 +144,26 @@ bool IGame_Level::Load(u32 dwNum)
 		g_hud = (CCustomHUD*)NEW_INSTANCE(CLSID_HUDMANAGER);
 
 	// Render-level Load
-	Render->level_Load(LL_Stream);
+	{
+		LOADING_TELEMETRY_SCOPE("renderer.level");
+		Render->level_Load(LL_Stream);
+	}
 	// tscreate.FrameEnd ();
 	// Msg ("* S-CREATE: %f ms, %d times",tscreate.result,tscreate.count);
 
 	// Objects
-	g_pGamePersistent->Environment().mods_load();
-	R_ASSERT(Load_GameSpecific_Before());
-	Objects.Load();
+	{
+		LOADING_TELEMETRY_SCOPE("environment.load");
+		g_pGamePersistent->Environment().mods_load();
+	}
+	{
+		LOADING_TELEMETRY_SCOPE("level.game_specific");
+		R_ASSERT(Load_GameSpecific_Before());
+	}
+	{
+		LOADING_TELEMETRY_SCOPE("level.object_creation");
+		Objects.Load();
+	}
 	//. ANDY R_ASSERT (Load_GameSpecific_After ());
 
 	// Done

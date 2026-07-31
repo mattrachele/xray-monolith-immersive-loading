@@ -22,6 +22,7 @@
 #include "string_table.h"
 #include "../xrEngine/igame_persistent.h"
 #include "autosave_manager.h"
+#include "../xrCore/loading_telemetry.h"
 //Alundaio
 #ifdef ENGINE_LUA_ALIFE_STORAGE_MANAGER_CALLBACKS
 #include "pch_script.h"
@@ -125,6 +126,8 @@ void CALifeStorageManager::save(LPCSTR save_name_no_check, bool update_name)
 
 void CALifeStorageManager::load(void* buffer, const u32& buffer_size, LPCSTR file_name)
 {
+	LoadingTelemetryScope deserialize_scope("save.deserialize");
+	deserialize_scope.SetBytes(buffer_size);
 	//Alundaio: So we can get the fname to make our own custom save states
 #ifdef ENGINE_LUA_ALIFE_STORAGE_MANAGER_CALLBACKS
 	::luabind::functor<void> funct;
@@ -134,23 +137,30 @@ void CALifeStorageManager::load(void* buffer, const u32& buffer_size, LPCSTR fil
 	//-Alundaio
 
 	IReader source(buffer, buffer_size);
-	header().load(source);
-	time_manager().load(source);
-	spawns().load(source, file_name);
-	graph().on_load();
-	objects().load(source);
+	{
+		LOADING_TELEMETRY_SCOPE("save.registry_parse");
+		header().load(source);
+		time_manager().load(source);
+		spawns().load(source, file_name);
+		graph().on_load();
+		objects().load(source);
+	}
 
 	VERIFY(can_register_objects());
 	can_register_objects(false);
 	CALifeObjectRegistry::OBJECT_REGISTRY::iterator B = objects().objects().begin();
 	CALifeObjectRegistry::OBJECT_REGISTRY::iterator E = objects().objects().end();
 	CALifeObjectRegistry::OBJECT_REGISTRY::iterator I;
-	for (I = B; I != E; ++I)
 	{
-		ALife::_OBJECT_ID id = (*I).second->ID;
-		(*I).second->ID = server().PerformIDgen(id);
-		VERIFY(id == (*I).second->ID);
-		register_object((*I).second, false);
+		LoadingTelemetryScope creation_scope("save.object_creation");
+		creation_scope.SetUnits(objects().objects().size());
+		for (I = B; I != E; ++I)
+		{
+			ALife::_OBJECT_ID id = (*I).second->ID;
+			(*I).second->ID = server().PerformIDgen(id);
+			VERIFY(id == (*I).second->ID);
+			register_object((*I).second, false);
+		}
 	}
 
 	registry().load(source);
@@ -168,6 +178,7 @@ void CALifeStorageManager::load(void* buffer, const u32& buffer_size, LPCSTR fil
 
 bool CALifeStorageManager::load(LPCSTR save_name_no_check)
 {
+	LOADING_TELEMETRY_SCOPE("save.load");
 	LPCSTR game_saves_path = FS.get_path("$game_saves$")->m_Path;
 
 	string_path save_name;
@@ -195,7 +206,10 @@ bool CALifeStorageManager::load(LPCSTR save_name_no_check)
 	xr_strcpy(g_bug_report_file, file_name);
 
 	IReader* stream;
-	stream = FS.r_open(file_name);
+	{
+		LOADING_TELEMETRY_SCOPE("save.read");
+		stream = FS.r_open(file_name);
+	}
 	if (!stream)
 	{
 		Msg("* Cannot find saved game %s", file_name);
@@ -217,7 +231,11 @@ bool CALifeStorageManager::load(LPCSTR save_name_no_check)
 
 	u32 source_count = stream->r_u32();
 	void* source_data = xr_malloc(source_count);
-	rtc_decompress(source_data, source_count, stream->pointer(), stream->length() - 3 * sizeof(u32));
+	{
+		LoadingTelemetryScope decompress_scope("save.decompress");
+		decompress_scope.SetBytes(stream->length() - 3 * sizeof(u32));
+		rtc_decompress(source_data, source_count, stream->pointer(), stream->length() - 3 * sizeof(u32));
+	}
 	FS.r_close(stream);
 	load(source_data, source_count, file_name);
 	xr_free(source_data);

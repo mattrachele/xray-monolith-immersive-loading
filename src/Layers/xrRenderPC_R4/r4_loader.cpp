@@ -7,6 +7,7 @@
 #include "../../xrEngine/x_ray.h"
 #include "../../xrEngine/IGame_Persistent.h"
 #include "../../xrCore/stream_reader.h"
+#include "../../xrCore/loading_telemetry.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 
@@ -22,6 +23,7 @@
 
 void CRender::level_Load(IReader* fs)
 {
+	LOADING_TELEMETRY_SCOPE("renderer.level_load");
 	R_ASSERT(0!=g_pGameLevel);
 	R_ASSERT(!b_loaded);
 
@@ -34,6 +36,7 @@ void CRender::level_Load(IReader* fs)
 	//	g_pGamePersistent->LoadTitle		("st_loading_shaders");
 	g_pGamePersistent->LoadTitle();
 	{
+		LOADING_TELEMETRY_SCOPE("renderer.shaders");
 		chunk = fs->open_chunk(fsL_SHADERS);
 		R_ASSERT2(chunk, "Level doesn't builded correctly.");
 		u32 count = chunk->r_u32();
@@ -63,6 +66,7 @@ void CRender::level_Load(IReader* fs)
 		//		g_pGamePersistent->LoadTitle("st_loading_geometry");
 		g_pGamePersistent->LoadTitle();
 		{
+			LOADING_TELEMETRY_SCOPE("renderer.geometry");
 			CStreamReader* geom = FS.rs_open("$level$", "level.geom");
 			R_ASSERT2(geom, "level.geom");
 			LoadBuffers(geom,FALSE);
@@ -72,6 +76,7 @@ void CRender::level_Load(IReader* fs)
 
 		//...and alternate/fast geometry
 		{
+			LOADING_TELEMETRY_SCOPE("renderer.geometry_fast");
 			CStreamReader* geom = FS.rs_open("$level$", "level.geomx");
 			R_ASSERT2(geom, "level.geomX");
 			LoadBuffers(geom,TRUE);
@@ -81,30 +86,48 @@ void CRender::level_Load(IReader* fs)
 		// Visuals
 		//		g_pGamePersistent->LoadTitle("st_loading_spatial_db");
 		g_pGamePersistent->LoadTitle();
-		chunk = fs->open_chunk(fsL_VISUALS);
-		LoadVisuals(chunk);
-		chunk->close();
+		{
+			LOADING_TELEMETRY_SCOPE("renderer.visuals");
+			chunk = fs->open_chunk(fsL_VISUALS);
+			LoadVisuals(chunk);
+			chunk->close();
+		}
 
 		// Details
 		//		g_pGamePersistent->LoadTitle("st_loading_details");
 		g_pGamePersistent->LoadTitle();
-		Details->Load();
+		{
+			LOADING_TELEMETRY_SCOPE("renderer.details");
+			Details->Load();
+		}
 	}
 
 	// Sectors
 	//	g_pGamePersistent->LoadTitle("st_loading_sectors_portals");
 	g_pGamePersistent->LoadTitle();
-	LoadSectors(fs);
+	{
+		LOADING_TELEMETRY_SCOPE("renderer.sectors_and_portals");
+		LoadSectors(fs);
+	}
 
 	// 3D Fluid
-	Load3DFluid();
+	{
+		LOADING_TELEMETRY_SCOPE("renderer.volumetrics");
+		Load3DFluid();
+	}
 
 	// HOM
-	HOM.Load();
+	{
+		LOADING_TELEMETRY_SCOPE("renderer.hom");
+		HOM.Load();
+	}
 
 	// Lights
 	// pApp->LoadTitle			("Loading lights...");
-	LoadLights(fs);
+	{
+		LOADING_TELEMETRY_SCOPE("renderer.lights");
+		LoadLights(fs);
+	}
 
 	// End
 	pApp->LoadEnd();

@@ -24,10 +24,12 @@ bool CLevel::net_Start_client(const char* options)
 }
 
 #include "string_table.h"
+#include "../xrCore/loading_telemetry.h"
 
 bool CLevel::net_start_client1()
 {
 	PROF_EVENT("CLevel::net_start_client1");
+	LOADING_TELEMETRY_SCOPE("activation.client_start");
 	pApp->LoadBegin();
 	// name_of_server
 	string64 name_of_server = "";
@@ -54,6 +56,7 @@ bool CLevel::net_start_client1()
 bool CLevel::net_start_client2()
 {
 	PROF_EVENT("CLevel::net_start_client2");
+	LOADING_TELEMETRY_SCOPE("activation.server_connect");
 	if (psNET_direct_connect)
 	{
 		Server->create_direct_client();
@@ -82,6 +85,7 @@ void rescan_mp_archives()
 bool CLevel::net_start_client3()
 {
 	PROF_EVENT("CLevel::net_start_client3");
+	LOADING_TELEMETRY_SCOPE("activation.level_load");
 	if (connected_to_server)
 	{
 		LPCSTR level_name = NULL;
@@ -137,6 +141,7 @@ bool CLevel::net_start_client3()
 bool CLevel::net_start_client4()
 {
 	PROF_EVENT("CLevel::net_start_client4");
+	LOADING_TELEMETRY_SCOPE("activation.physics_and_network");
 	if (connected_to_server)
 	{
 		// Begin spawn
@@ -214,6 +219,7 @@ void CLevel::ClientSendProfileData()
 bool CLevel::net_start_client5()
 {
 	PROF_EVENT("CLevel::net_start_client5");
+	LOADING_TELEMETRY_SCOPE("activation.deferred_resources");
 	if (connected_to_server)
 	{
 		// HUD
@@ -238,6 +244,7 @@ bool CLevel::net_start_client5()
 bool CLevel::net_start_client6()
 {
 	PROF_EVENT("CLevel::net_start_client6");
+	LOADING_TELEMETRY_SCOPE("activation.hud_and_precache");
 	if (connected_to_server)
 	{
 		// Sync

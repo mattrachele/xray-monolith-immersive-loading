@@ -13,6 +13,7 @@
 #include "script_process.h"
 #include "../build_config_defines.h"
 #include "script_storage.h"
+#include "../xrCore/loading_telemetry.h"
 #include <unordered_map>
 #include <set>
 #include <luabind/class_info.hpp>
@@ -380,6 +381,7 @@ extern bool unlocalizerPassed;
 
 void CScriptEngine::init()
 {
+	LOADING_TELEMETRY_SCOPE("lua.lifecycle.initialize");
 #ifdef USE_LUA_STUDIO
     bool lua_studio_connected = !!m_lua_studio_world;
     if (lua_studio_connected)
@@ -391,7 +393,10 @@ void CScriptEngine::init()
 	invalidate_functor_cache();
 #endif
 
-	CScriptStorage::reinit();
+	{
+		LOADING_TELEMETRY_SCOPE("lua.state.construct");
+		CScriptStorage::reinit();
+	}
 
 #ifdef USE_LUA_STUDIO
     if (m_lua_studio_world || Core.ParamsData.test(ECoreParams::lua_studio) {
@@ -409,11 +414,14 @@ void CScriptEngine::init()
     }
 #endif // #ifdef USE_LUA_STUDIO
 
-	::luabind::open(lua());
-	::luabind::bind_class_info(lua());
-	setup_callbacks();
-	export_classes(lua());
-	setup_auto_load();
+	{
+		LOADING_TELEMETRY_SCOPE("lua.bindings_and_global_state");
+		::luabind::open(lua());
+		::luabind::bind_class_info(lua());
+		setup_callbacks();
+		export_classes(lua());
+		setup_auto_load();
+	}
 
 #ifdef DEBUG
     m_stack_is_ready					= true;
@@ -433,14 +441,26 @@ void CScriptEngine::init()
 	unlocalizerPassed = false;
 	bool save = m_reload_modules;
 	m_reload_modules = true;
-	process_file_if_exists("_G", false);
+	{
+		LOADING_TELEMETRY_SCOPE("lua.module._G");
+		process_file_if_exists("_G", false);
+	}
 	m_reload_modules = save;
 
-	register_script_classes();
-	object_factory().register_script();
+	{
+		LOADING_TELEMETRY_SCOPE("lua.class_registration");
+		register_script_classes();
+	}
+	{
+		LOADING_TELEMETRY_SCOPE("lua.object_factory_registration");
+		object_factory().register_script();
+	}
 
 #ifdef XRGAME_EXPORTS
-	load_common_scripts();
+	{
+		LOADING_TELEMETRY_SCOPE("lua.common_modules");
+		load_common_scripts();
+	}
 #endif
 	m_stack_level = lua_gettop(lua());
 	

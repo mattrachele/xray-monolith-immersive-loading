@@ -571,6 +571,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='VerifiedDX11ASAN|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release-AVX|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="loading_telemetry.cpp" />
     <ClCompile Include="Lock.cpp" />
     <ClCompile Include="log.cpp" />
     <ClCompile Include="LzHuf.cpp" />
@@ -688,6 +689,8 @@
     <ClInclude Include="intrusive_ptr.h" />
     <ClInclude Include="LocatorAPI.h" />
     <ClInclude Include="LocatorAPI_defs.h" />
+    <ClInclude Include="loading_telemetry.h" />
+    <ClInclude Include="loading_telemetry_build.h" />
     <CustomBuild Include="LocatorAPI_Notifications.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ProfiledDX11|x64'">true</ExcludedFromBuild>

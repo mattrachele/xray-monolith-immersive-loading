@@ -3,6 +3,7 @@
 #include "xr_ioconsole.h"
 #include "xr_input.h"
 #include "../xrCore/profiler.h"
+#include "../xrCore/loading_telemetry.h"
 
 #pragma warning(disable:4995)
 // mmsystem.h
@@ -126,6 +127,8 @@ void CRenderDevice::End(void)
 
 		if (!dwPrecacheFrame)
 		{
+			LoadingTelemetry::MarkPlayerInputReady();
+			LoadingTelemetry::EndActiveSession();
 #ifdef INGAME_EDITOR
             load_finished = true;
 #endif // #ifdef INGAME_EDITOR
@@ -369,6 +372,16 @@ void CRenderDevice::on_idle()
 		PROF_EVENT("LoadDraw");
 		pApp->LoadDraw();
 		return;
+	}
+
+	if (g_appLoaded && LoadingTelemetry::HasActiveSession())
+	{
+		LoadingTelemetry::MarkFirstDestinationFrame();
+		if (!dwPrecacheFrame)
+		{
+			LoadingTelemetry::MarkPlayerInputReady();
+			LoadingTelemetry::EndActiveSession();
+		}
 	}
 
 	if (!Device.dwPrecacheFrame && !g_SASH.IsBenchmarkRunning() && g_bLoaded)
