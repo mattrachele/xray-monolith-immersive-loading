@@ -1,0 +1,141 @@
+name: Gate 2 DX11 MT
+
+on:
+  push:
+    branches:
+      - mt-develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate2-dx11-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BASELINE_SHA: 2110645162ee529b31c94bc1940a2c435dcd452a
+  SOLUTION: src/engine-vs2022.sln
+  CONFIGURATION: DX11
+  PLATFORM: x64
+  OUTPUT_DIR: _build/_game/bin_dbg
+  ARTIFACT_DIR: _build/gate2-artifact
+
+jobs:
+  build:
+    name: Build verified DX11 MT baseline
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Configure 8 GiB page file
+        uses: al-cheb/configure-pagefile-action@86589fd789a4de3e62ba628dda2cb10027b66d67
+        with:
+          minimum-size: 8GB
+          maximum-size: 8GB
+          disk-root: C
+
+      - name: Check out the requested immutable revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prove source equivalence to the verified MT baseline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $head = (git rev-parse HEAD).Trim()
+          git cat-file -e "${env:BASELINE_SHA}^{commit}"
+          git merge-base --is-ancestor $env:BASELINE_SHA $head
+          if ($LASTEXITCODE -ne 0) {
+            throw "$head does not descend from verified MT baseline $env:BASELINE_SHA"
+          }
+          git diff --exit-code "$env:BASELINE_SHA..$head" -- src gamedata
+          if ($LASTEXITCODE -ne 0) {
+            throw "Gate 2 requires no source or gamedata changes"
+          }
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build DX11 x64
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          msbuild $env:SOLUTION /m /p:Configuration=$env:CONFIGURATION /p:Platform=$env:PLATFORM /v:minimal
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Build manifest and checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Join-Path $env:OUTPUT_DIR "AnomalyDX11.exe"
+          $pdb = Join-Path $env:OUTPUT_DIR "AnomalyDX11.pdb"
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            throw "Required executable is missing: $exe"
+          }
+          if (-not (Test-Path -LiteralPath $pdb -PathType Leaf)) {
+            throw "Required symbols are missing: $pdb"
+          }
+
+          New-Item -ItemType Directory -Force -Path $env:ARTIFACT_DIR | Out-Null
+          Copy-Item -LiteralPath $exe, $pdb -Destination $env:ARTIFACT_DIR
+
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = (& $vswhere -latest -property installationPath).Trim()
+          $vsVersion = (& $vswhere -latest -property catalog_productDisplayVersion).Trim()
+          $toolset = Get-ChildItem -LiteralPath (Join-Path $vsPath "VC\Tools\MSVC") -Directory |
+            Sort-Object Name -Descending |
+            Select-Object -First 1 -ExpandProperty Name
+          $msbuildVersion = (msbuild -version -nologo | Select-Object -Last 1).Trim()
+          $head = (git rev-parse HEAD).Trim()
+          $submodules = @(
+            git submodule status --recursive |
+              ForEach-Object { $_.Trim() }
+          )
+
+          $exeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
+          $pdbHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pdb).Hash.ToLowerInvariant()
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            engineCommit = $head
+            verifiedMtBaseline = $env:BASELINE_SHA
+            sourceEquivalentToBaseline = $true
+            solution = $env:SOLUTION
+            configuration = $env:CONFIGURATION
+            platform = $env:PLATFORM
+            runnerOS = $env:RUNNER_OS
+            runnerArch = $env:RUNNER_ARCH
+            runnerImage = $env:ImageOS
+            runnerImageVersion = $env:ImageVersion
+            visualStudioVersion = $vsVersion
+            msvcToolsetVersion = $toolset
+            msbuildVersion = $msbuildVersion
+            submodules = $submodules
+            buildTimeUtc = (Get-Date).ToUniversalTime().ToString("o")
+            files = [ordered]@{
+              "AnomalyDX11.exe" = $exeHash
+              "AnomalyDX11.pdb" = $pdbHash
+            }
+          }
+          $manifest |
+            ConvertTo-Json -Depth 6 |
+            Set-Content -LiteralPath (Join-Path $env:ARTIFACT_DIR "artifact-manifest.json")
+          @(
+            "$exeHash  AnomalyDX11.exe"
+            "$pdbHash  AnomalyDX11.pdb"
+          ) | Set-Content -LiteralPath (Join-Path $env:ARTIFACT_DIR "SHA256SUMS")
+
+      - name: Upload Gate 2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate2-dx11-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
