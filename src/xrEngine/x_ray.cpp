@@ -1643,7 +1643,9 @@ void CApplication::DrawLoadingScreenInActiveFrame()
 {
 	if (m_loadingHost.Enabled())
 	{
-		VERIFY(m_loadingHost.DrawInActiveFrame(*this));
+		const bool drawn = m_loadingHost.DrawInActiveFrame(*this);
+		VERIFY(drawn);
+		UNUSED(drawn);
 		return;
 	}
 
