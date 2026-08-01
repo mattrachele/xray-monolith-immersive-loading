@@ -21,14 +21,30 @@ namespace
 		LPCSTR task_id;
 	};
 
+	struct CompletedSpan
+	{
+		u64 span_id;
+		u64 session_id;
+		u64 start_ticks;
+		u64 elapsed_ticks;
+		u64 parent_span_id;
+		LPCSTR task_id;
+		LPCSTR parent_task_id;
+		u32 thread_id;
+		u64 units;
+		u64 bytes;
+	};
+
 	thread_local ActiveSpan g_stack[kMaxDepth];
 	thread_local u32 g_depth = 0;
 
 	std::atomic<u64> g_next_span_id(1);
 	std::atomic<u64> g_next_session_id(1);
 	std::mutex g_output_mutex;
+	std::mutex g_completed_span_mutex;
 	std::ofstream g_output;
 	xr_vector<xr_string> g_pending_lines;
+	xr_vector<CompletedSpan> g_completed_spans;
 	LARGE_INTEGER g_frequency = {};
 	LARGE_INTEGER g_origin = {};
 	std::atomic<u64> g_active_session(0);
@@ -146,6 +162,47 @@ namespace
 		emit_line(json.str().c_str());
 	}
 
+	void flush_completed_spans()
+	{
+		xr_vector<CompletedSpan> completed;
+		{
+			std::lock_guard<std::mutex> guard(g_completed_span_mutex);
+			completed.swap(g_completed_spans);
+		}
+		if (completed.empty())
+			return;
+
+		std::ostringstream batch;
+		batch.setf(std::ios::fixed);
+		batch.precision(3);
+		for (const CompletedSpan& span : completed)
+		{
+			batch << "{\"schema_version\":" << kSchemaVersion
+				<< ",\"record\":\"span\""
+				<< ",\"session_id\":" << span.session_id
+				<< ",\"span_id\":" << span.span_id
+				<< ",\"task_id\":\"" << json_escape(span.task_id).c_str() << "\"";
+			if (span.parent_task_id)
+				batch << ",\"parent_span_id\":" << span.parent_span_id
+					<< ",\"parent_task_id\":\"" << json_escape(span.parent_task_id).c_str() << "\"";
+			else
+				batch << ",\"parent_span_id\":null,\"parent_task_id\":null";
+			batch << ",\"start_ms\":" << ticks_to_ms(span.start_ticks - static_cast<u64>(g_origin.QuadPart))
+				<< ",\"elapsed_ms\":" << ticks_to_ms(span.elapsed_ticks)
+				<< ",\"thread_id\":" << span.thread_id
+				<< ",\"units\":" << span.units
+				<< ",\"bytes\":" << span.bytes
+				<< "}\n";
+		}
+
+		const std::string lines = batch.str();
+		std::lock_guard<std::mutex> guard(g_output_mutex);
+		if (g_output.is_open())
+			g_output << lines;
+		else
+			g_pending_lines.push_back(lines.c_str());
+	}
+
 	LoadingTelemetryToken begin_detached_session_span(LPCSTR task_id)
 	{
 		LoadingTelemetryToken token;
@@ -199,6 +256,7 @@ void LoadingTelemetry::InitializeOutput()
 		QueryPerformanceFrequency(&g_frequency);
 	if (!g_origin.QuadPart)
 		QueryPerformanceCounter(&g_origin);
+	g_completed_spans.reserve(512);
 
 	string_path path;
 	FS.update_path(path, "$logs$", "loading_telemetry.jsonl");
@@ -230,6 +288,7 @@ void LoadingTelemetry::InitializeOutput()
 
 void LoadingTelemetry::Shutdown()
 {
+	flush_completed_spans();
 	std::lock_guard<std::mutex> guard(g_output_mutex);
 	if (g_output.is_open())
 	{
@@ -265,6 +324,9 @@ void LoadingTelemetry::EndSession(LoadingTelemetryToken& token)
 		return;
 	Instant("loading.session.end", token.task_id);
 	EndSpan(token);
+	// Span formatting and file writes happen after loading.total has stopped so
+	// detailed telemetry does not extend the measured loading interval.
+	flush_completed_spans();
 	{
 		std::lock_guard<std::mutex> guard(g_output_mutex);
 		if (g_output.is_open())
@@ -332,26 +394,21 @@ void LoadingTelemetry::EndSpan(LoadingTelemetryToken& token, u64 units, u64 byte
 		break;
 	}
 
-	std::ostringstream json;
-	json.setf(std::ios::fixed);
-	json.precision(3);
-	json << "{\"schema_version\":" << kSchemaVersion
-		<< ",\"record\":\"span\""
-		<< ",\"session_id\":" << token.session_id
-		<< ",\"span_id\":" << token.span_id
-		<< ",\"task_id\":\"" << json_escape(token.task_id).c_str() << "\"";
-	if (token.parent_task_id)
-		json << ",\"parent_span_id\":" << token.parent_span_id
-			<< ",\"parent_task_id\":\"" << json_escape(token.parent_task_id).c_str() << "\"";
-	else
-		json << ",\"parent_span_id\":null,\"parent_task_id\":null";
-	json << ",\"start_ms\":" << ticks_to_ms(token.start_ticks - static_cast<u64>(g_origin.QuadPart))
-		<< ",\"elapsed_ms\":" << ticks_to_ms(end_ticks - token.start_ticks)
-		<< ",\"thread_id\":" << token.thread_id
-		<< ",\"units\":" << units
-		<< ",\"bytes\":" << bytes
-		<< "}";
-	emit_line(json.str().c_str());
+	CompletedSpan completed = {};
+	completed.span_id = token.span_id;
+	completed.session_id = token.session_id;
+	completed.start_ticks = token.start_ticks;
+	completed.elapsed_ticks = end_ticks - token.start_ticks;
+	completed.parent_span_id = token.parent_span_id;
+	completed.task_id = token.task_id;
+	completed.parent_task_id = token.parent_task_id;
+	completed.thread_id = token.thread_id;
+	completed.units = units;
+	completed.bytes = bytes;
+	{
+		std::lock_guard<std::mutex> guard(g_completed_span_mutex);
+		g_completed_spans.push_back(completed);
+	}
 	token.active = false;
 }
 
