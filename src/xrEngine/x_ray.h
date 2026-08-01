@@ -6,11 +6,13 @@ class ENGINE_API CGameFont;
 
 #include "../Include/xrRender/FactoryPtr.h"
 #include "../Include/xrRender/ApplicationRender.h"
+#include "LoadingHost.h"
 
 // definition
 class ENGINE_API CApplication :
 	public pureFrame,
-	public IEventReceiver
+	public IEventReceiver,
+	public ILoadingHostPresenter
 {
 	friend class dxApplicationRender;
 
@@ -33,6 +35,7 @@ private:
 	int load_stage;
 
 	u32 ll_dwReference;
+	CLoadingHost m_loadingHost;
 private:
 	EVENT eQuit;
 	EVENT eStart;
@@ -61,6 +64,7 @@ public:
 	void LoadStage();
 	void LoadSwitch();
 	void LoadDraw();
+	void DrawLoadingHost(const SLoadingHostFrame& frame) override;
 
 	virtual void OnEvent(EVENT E, u64 P1, u64 P2);
 

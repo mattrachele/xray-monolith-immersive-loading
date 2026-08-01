@@ -104,6 +104,21 @@ BOOL CRenderDevice::Begin()
 	return TRUE;
 }
 
+BOOL CRenderDevice::BeginLoadingFrame()
+{
+	PROF_EVENT("Loading host: Begin frame");
+
+#ifndef DEDICATED_SERVER
+	if (g_bRendering || m_pRender->GetDeviceState() != IRenderDeviceRender::dsOK)
+		return FALSE;
+
+	m_pRender->Begin();
+	FPU::m24r();
+	g_bRendering = true;
+#endif
+	return TRUE;
+}
+
 void CRenderDevice::Clear()
 {
 	m_pRender->Clear();
@@ -185,6 +200,17 @@ void CRenderDevice::End(void)
     if (load_finished && m_editor)
         m_editor->on_load_finished();
 # endif // #ifdef INGAME_EDITOR
+#endif
+}
+
+void CRenderDevice::EndLoadingFrame()
+{
+	PROF_EVENT("Loading host: End frame");
+
+#ifndef DEDICATED_SERVER
+	VERIFY(g_bRendering);
+	g_bRendering = false;
+	m_pRender->End();
 #endif
 }
 

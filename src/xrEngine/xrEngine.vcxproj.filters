@@ -183,6 +183,9 @@
     <ClInclude Include="x_ray.h">
       <Filter>General</Filter>
     </ClInclude>
+	<ClInclude Include="LoadingHost.h">
+	  <Filter>General</Filter>
+	</ClInclude>
     <ClInclude Include="resource.h">
       <Filter>General\Resources</Filter>
     </ClInclude>
@@ -504,6 +507,9 @@
     <ClCompile Include="x_ray.cpp">
       <Filter>General</Filter>
     </ClCompile>
+	<ClCompile Include="LoadingHost.cpp">
+	  <Filter>General</Filter>
+	</ClCompile>
     <ClCompile Include="IInputReceiver.cpp">
       <Filter>Interfaces\Input</Filter>
     </ClCompile>

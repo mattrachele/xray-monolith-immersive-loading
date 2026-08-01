@@ -89,6 +89,7 @@ enum class ECoreParams : u8
 	start,
 	load,
 	loading_benchmark,
+	immersive_loading_host,
 	psp,
 	ignore_save_incompatibility,
 	sound_constant_speed,

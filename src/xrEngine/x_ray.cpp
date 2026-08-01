@@ -1373,6 +1373,7 @@ void _InitializeFont(CGameFont*& F, LPCSTR section, u32 flags)
 }
 
 CApplication::CApplication()
+	: m_loadingHost(Core.ParamsData.test(ECoreParams::immersive_loading_host) && !g_dedicated_server)
 {
 	ll_dwReference = 0;
 
@@ -1410,6 +1411,7 @@ CApplication::CApplication()
 
 CApplication::~CApplication()
 {
+	m_loadingHost.Shutdown();
 	Console->Hide();
 
 	// font
@@ -1550,6 +1552,7 @@ extern ENGINE_API BOOL g_bootComplete = FALSE;
 void CApplication::LoadBegin()
 {
 	ll_dwReference++;
+	m_loadingHost.Begin();
 	if (1 == ll_dwReference)
 	{
 		LoadingTelemetry::BeginSession("loading.total");
@@ -1572,6 +1575,7 @@ void CApplication::LoadBegin()
 void CApplication::LoadEnd()
 {
 	ll_dwReference--;
+	m_loadingHost.End();
 	if (0 == ll_dwReference)
 	{
 		Msg("* phase time: %d ms", phase_timer.GetElapsed_ms());
@@ -1586,6 +1590,7 @@ void CApplication::LoadEnd()
 void CApplication::destroy_loading_shaders()
 {
 	m_pRender->destroy_loading_shaders();
+	m_loadingHost.CompleteHandoff();
 
 	//AVO:
 	g_bootComplete = TRUE;
@@ -1605,6 +1610,16 @@ PROTECT_API void CApplication::LoadDraw()
 	if (g_appLoaded) return;
 	Device.dwFrame += 1;
 
+	if (m_loadingHost.Enabled())
+	{
+		if (!m_loadingHost.Present(*this))
+			return;
+
+		LoadingTelemetry::MarkFirstLoadingFrame();
+		LoadingTelemetry::RecordLoadingFrame();
+		return;
+	}
+
 
 	if (!Device.Begin()) return;
 
@@ -1616,6 +1631,12 @@ PROTECT_API void CApplication::LoadDraw()
 	Device.End();
 	LoadingTelemetry::MarkFirstLoadingFrame();
 	LoadingTelemetry::RecordLoadingFrame();
+}
+
+void CApplication::DrawLoadingHost(const SLoadingHostFrame& frame)
+{
+	UNUSED(frame);
+	load_draw_internal();
 }
 
 void CApplication::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)

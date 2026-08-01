@@ -55,6 +55,8 @@ jobs:
             "src/xrCore/loading_telemetry.h"
             "src/xrCore/loading_telemetry.cpp"
             "src/xrCore/loading_telemetry_build.h"
+            "src/xrEngine/LoadingHost.h"
+            "src/xrEngine/LoadingHost.cpp"
           ) | ForEach-Object {
             if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {
               throw "Required telemetry source is missing: $_"
