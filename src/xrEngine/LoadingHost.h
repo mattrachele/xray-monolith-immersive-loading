@@ -36,6 +36,7 @@ public:
 	ELoadingHostState State() const { return m_state; }
 	u32 SessionId() const { return m_sessionId; }
 	u32 NestingDepth() const { return m_nestingDepth; }
+	u32 FrameBudgetMs() const { return m_frameBudgetMs; }
 
 	void Begin();
 	void End();
@@ -43,11 +44,12 @@ public:
 	void CompleteHandoff();
 	void Shutdown();
 
-	bool Present(ILoadingHostPresenter& presenter);
+	bool YieldIfDue(ILoadingHostPresenter& presenter);
 	bool DrawInActiveFrame(ILoadingHostPresenter& presenter);
 
 private:
 	bool IsPrimaryThread() const;
+	bool Present(ILoadingHostPresenter& presenter);
 	void DrawProvider(ILoadingHostPresenter& presenter);
 	void SetState(ELoadingHostState state);
 
@@ -58,6 +60,12 @@ private:
 	u32 m_primaryThreadId;
 	u32 m_sessionId;
 	u32 m_nestingDepth;
+	u32 m_frameBudgetMs;
+	u32 m_lastYieldMs;
+	u32 m_yieldChecks;
+	u32 m_yieldsPresented;
+	u32 m_yieldsSkipped;
+	bool m_hasYielded;
 	u32 m_lastPresentedFrame;
 	u32 m_blockingOwnerSession;
 	u32 m_activeFrameOwnerSession;

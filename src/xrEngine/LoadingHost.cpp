@@ -3,6 +3,34 @@
 
 namespace
 {
+constexpr u32 kDefaultLoadingFrameBudgetMs = 33;
+constexpr u32 kMinimumLoadingFrameBudgetMs = 16;
+constexpr u32 kMaximumLoadingFrameBudgetMs = 33;
+
+u32 loading_frame_budget_ms()
+{
+	if (!Core.Params)
+		return kDefaultLoadingFrameBudgetMs;
+
+	constexpr LPCSTR marker = "-immersive_loading_budget_ms ";
+	LPCSTR value = strstr(Core.Params, marker);
+	if (!value)
+		return kDefaultLoadingFrameBudgetMs;
+
+	value += xr_strlen(marker);
+	LPSTR end = nullptr;
+	const long parsed = strtol(value, &end, 10);
+	if (end == value || (*end != '\0' && *end != ' ') || parsed < kMinimumLoadingFrameBudgetMs ||
+	    parsed > kMaximumLoadingFrameBudgetMs)
+	{
+		Msg("! [loading-host] invalid frame budget; expected %u-%u ms, using %u ms",
+		    kMinimumLoadingFrameBudgetMs, kMaximumLoadingFrameBudgetMs, kDefaultLoadingFrameBudgetMs);
+		return kDefaultLoadingFrameBudgetMs;
+	}
+
+	return static_cast<u32>(parsed);
+}
+
 LPCSTR loading_host_state_name(ELoadingHostState state)
 {
 	switch (state)
@@ -29,12 +57,18 @@ CLoadingHost::CLoadingHost(bool enabled)
 	  m_primaryThreadId(GetCurrentThreadId()),
 	  m_sessionId(0),
 	  m_nestingDepth(0),
+	  m_frameBudgetMs(loading_frame_budget_ms()),
+	  m_lastYieldMs(0),
+	  m_yieldChecks(0),
+	  m_yieldsPresented(0),
+	  m_yieldsSkipped(0),
+	  m_hasYielded(false),
 	  m_lastPresentedFrame(u32(-1)),
 	  m_blockingOwnerSession(u32(-1)),
 	  m_activeFrameOwnerSession(u32(-1))
 {
 	if (m_enabled)
-		Msg("* [loading-host] enabled; static provider active");
+		Msg("* [loading-host] enabled; static provider active; frame_budget_ms=%u", m_frameBudgetMs);
 }
 
 CLoadingHost::~CLoadingHost()
@@ -68,6 +102,11 @@ void CLoadingHost::Begin()
 	if (m_nestingDepth++ == 0)
 	{
 		++m_sessionId;
+		m_lastYieldMs = 0;
+		m_yieldChecks = 0;
+		m_yieldsPresented = 0;
+		m_yieldsSkipped = 0;
+		m_hasYielded = false;
 		SetState(ELoadingHostState::Starting);
 		SetState(ELoadingHostState::Loading);
 	}
@@ -81,8 +120,13 @@ void CLoadingHost::End()
 	VERIFY(IsPrimaryThread());
 	VERIFY(m_nestingDepth > 0);
 
-	if (--m_nestingDepth == 0 && m_state != ELoadingHostState::Error)
-		SetState(ELoadingHostState::Finalizing);
+	if (--m_nestingDepth == 0)
+	{
+		Msg("* [loading-host] session=%u budget_ms=%u yield_checks=%u presented=%u skipped=%u",
+		    m_sessionId, m_frameBudgetMs, m_yieldChecks, m_yieldsPresented, m_yieldsSkipped);
+		if (m_state != ELoadingHostState::Error)
+			SetState(ELoadingHostState::Finalizing);
+	}
 }
 
 void CLoadingHost::Fail()
@@ -138,6 +182,32 @@ bool CLoadingHost::Present(ILoadingHostPresenter& presenter)
 
 	DrawProvider(presenter);
 	Device.EndLoadingFrame();
+	return true;
+}
+
+bool CLoadingHost::YieldIfDue(ILoadingHostPresenter& presenter)
+{
+	if (!m_enabled || m_presenting)
+		return false;
+
+	VERIFY(IsPrimaryThread());
+	VERIFY(m_state == ELoadingHostState::Loading || m_state == ELoadingHostState::Error);
+
+	++m_yieldChecks;
+	const u32 now = Device.TimerAsync();
+	if (m_hasYielded && now - m_lastYieldMs < m_frameBudgetMs)
+	{
+		++m_yieldsSkipped;
+		return false;
+	}
+
+	Device.dwFrame += 1;
+	if (!Present(presenter))
+		return false;
+
+	m_lastYieldMs = Device.TimerAsync();
+	m_hasYielded = true;
+	++m_yieldsPresented;
 	return true;
 }
 

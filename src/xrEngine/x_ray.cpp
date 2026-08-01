@@ -1608,11 +1608,10 @@ PROTECT_API void CApplication::LoadDraw()
 	PROF_EVENT();
 
 	if (g_appLoaded) return;
-	Device.dwFrame += 1;
 
 	if (m_loadingHost.Enabled())
 	{
-		if (!m_loadingHost.Present(*this))
+		if (!m_loadingHost.YieldIfDue(*this))
 			return;
 
 		LoadingTelemetry::MarkFirstLoadingFrame();
@@ -1620,6 +1619,7 @@ PROTECT_API void CApplication::LoadDraw()
 		return;
 	}
 
+	Device.dwFrame += 1;
 
 	if (!Device.Begin()) return;
 
