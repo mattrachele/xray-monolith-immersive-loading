@@ -940,7 +940,7 @@ void CLoadScreenRenderer::OnRender()
 {
 	PROF_EVENT();
 
-	pApp->load_draw_internal();
+	pApp->DrawLoadingScreenInActiveFrame();
 }
 
 void CRenderDevice::CSecondVPParams::SetSVPActive(bool bState) //--#SM+#-- +SecondVP+

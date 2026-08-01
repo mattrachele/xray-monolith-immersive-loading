@@ -64,6 +64,7 @@ public:
 	void LoadStage();
 	void LoadSwitch();
 	void LoadDraw();
+	void DrawLoadingScreenInActiveFrame();
 	void DrawLoadingHost(const SLoadingHostFrame& frame) override;
 
 	virtual void OnEvent(EVENT E, u64 P1, u64 P2);

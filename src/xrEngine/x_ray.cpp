@@ -1639,6 +1639,17 @@ void CApplication::DrawLoadingHost(const SLoadingHostFrame& frame)
 	load_draw_internal();
 }
 
+void CApplication::DrawLoadingScreenInActiveFrame()
+{
+	if (m_loadingHost.Enabled())
+	{
+		VERIFY(m_loadingHost.DrawInActiveFrame(*this));
+		return;
+	}
+
+	load_draw_internal();
+}
+
 void CApplication::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)
 {
 	xr_strcpy(ls_header, str1);

@@ -28,7 +28,10 @@ CLoadingHost::CLoadingHost(bool enabled)
 	  m_state(enabled ? ELoadingHostState::Idle : ELoadingHostState::Disabled),
 	  m_primaryThreadId(GetCurrentThreadId()),
 	  m_sessionId(0),
-	  m_nestingDepth(0)
+	  m_nestingDepth(0),
+	  m_lastPresentedFrame(u32(-1)),
+	  m_blockingOwnerSession(u32(-1)),
+	  m_activeFrameOwnerSession(u32(-1))
 {
 	if (m_enabled)
 		Msg("* [loading-host] enabled; static provider active");
@@ -127,10 +130,43 @@ bool CLoadingHost::Present(ILoadingHostPresenter& presenter)
 	if (!Device.BeginLoadingFrame())
 		return false;
 
+	if (m_blockingOwnerSession != m_sessionId)
+	{
+		m_blockingOwnerSession = m_sessionId;
+		Msg("* [loading-host] session=%u owner=host phase=blocking provider=static", m_sessionId);
+	}
+
+	DrawProvider(presenter);
+	Device.EndLoadingFrame();
+	return true;
+}
+
+bool CLoadingHost::DrawInActiveFrame(ILoadingHostPresenter& presenter)
+{
+	if (!m_enabled || m_presenting || m_state == ELoadingHostState::Shutdown)
+		return false;
+
+	VERIFY(IsPrimaryThread());
+
+	if (m_activeFrameOwnerSession != m_sessionId)
+	{
+		m_activeFrameOwnerSession = m_sessionId;
+		Msg("* [loading-host] session=%u owner=host phase=active-frame provider=static", m_sessionId);
+	}
+
+	DrawProvider(presenter);
+	return true;
+}
+
+void CLoadingHost::DrawProvider(ILoadingHostPresenter& presenter)
+{
+	VERIFY(IsPrimaryThread());
+	VERIFY(!m_presenting);
+	VERIFY(m_lastPresentedFrame != Device.dwFrame);
+
 	m_presenting = true;
 	SLoadingHostFrame frame = {m_state, m_sessionId, m_nestingDepth};
 	presenter.DrawLoadingHost(frame);
 	m_presenting = false;
-	Device.EndLoadingFrame();
-	return true;
+	m_lastPresentedFrame = Device.dwFrame;
 }

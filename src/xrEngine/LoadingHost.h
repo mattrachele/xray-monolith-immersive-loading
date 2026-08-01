@@ -44,9 +44,11 @@ public:
 	void Shutdown();
 
 	bool Present(ILoadingHostPresenter& presenter);
+	bool DrawInActiveFrame(ILoadingHostPresenter& presenter);
 
 private:
 	bool IsPrimaryThread() const;
+	void DrawProvider(ILoadingHostPresenter& presenter);
 	void SetState(ELoadingHostState state);
 
 private:
@@ -56,4 +58,7 @@ private:
 	u32 m_primaryThreadId;
 	u32 m_sessionId;
 	u32 m_nestingDepth;
+	u32 m_lastPresentedFrame;
+	u32 m_blockingOwnerSession;
+	u32 m_activeFrameOwnerSession;
 };
