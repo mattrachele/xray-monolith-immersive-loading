@@ -911,7 +911,7 @@ void CRenderDevice::RemoveSeqFrame(pureFrame* f)
 }
 
 CLoadScreenRenderer::CLoadScreenRenderer()
-	: b_registered(false)
+	: b_registered(false), b_need_user_input(false), b_rendered_frame(false)
 {
 }
 
@@ -922,6 +922,7 @@ void CLoadScreenRenderer::start(bool b_user_input)
 	Device.seqRender.Add(this, 0);
 	b_registered = true;
 	b_need_user_input = b_user_input;
+	b_rendered_frame = false;
 }
 
 void CLoadScreenRenderer::stop()
@@ -934,6 +935,7 @@ void CLoadScreenRenderer::stop()
 	pApp->destroy_loading_shaders();
 	b_registered = false;
 	b_need_user_input = false;
+	b_rendered_frame = false;
 }
 
 void CLoadScreenRenderer::OnRender()
@@ -941,6 +943,7 @@ void CLoadScreenRenderer::OnRender()
 	PROF_EVENT();
 
 	pApp->DrawLoadingScreenInActiveFrame();
+	b_rendered_frame = true;
 }
 
 void CRenderDevice::CSecondVPParams::SetSVPActive(bool bState) //--#SM+#-- +SecondVP+

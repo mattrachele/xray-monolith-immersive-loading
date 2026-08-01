@@ -520,6 +520,12 @@ void CGamePersistent::game_loaded()
 			Core.ParamsData.test(ECoreParams::loading_benchmark) &&
 			m_game_params.m_e_game_type == eGameIDSingle)
 		{
+			// Exercise the real finalizing renderer before the unattended
+			// benchmark dismisses the test-only input gate. This keeps the
+			// automated route representative without changing normal launches.
+			if (!load_screen_renderer.HasRenderedFrame())
+				return;
+
 			Msg("* [loading-benchmark] dismissing post-load input gate");
 			m_intro_event = 0;
 			update_game_loaded();

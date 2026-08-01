@@ -547,9 +547,13 @@ public:
 
 	bool b_registered;
 	bool b_need_user_input;
+	bool b_rendered_frame;
 
 	bool IsActive() const {
 		return b_registered;
+	}
+	bool HasRenderedFrame() const {
+		return b_rendered_frame;
 	}
 };
 
