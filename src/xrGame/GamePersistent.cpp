@@ -512,6 +512,20 @@ void CGamePersistent::game_loaded()
 {
 	if (Device.dwPrecacheFrame <= 2)
 	{
+		// Unattended benchmark runs cannot synthesize a reliable key press on
+		// every host compositor. Finish the existing post-load path explicitly;
+		// normal launches retain the interactive loading-screen gate.
+		if (g_pGameLevel &&
+			g_pGameLevel->bReady &&
+			Core.ParamsData.test(ECoreParams::loading_benchmark) &&
+			m_game_params.m_e_game_type == eGameIDSingle)
+		{
+			Msg("* [loading-benchmark] dismissing post-load input gate");
+			m_intro_event = 0;
+			update_game_loaded();
+			return;
+		}
+
 		if (g_pGameLevel &&
 			g_pGameLevel->bReady &&
 			(allow_intro() && psDeviceFlags2.test(rsKeypress)) &&
