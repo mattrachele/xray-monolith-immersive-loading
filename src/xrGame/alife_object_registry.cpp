@@ -8,6 +8,7 @@
 
 #include "stdafx.h"
 #include "alife_object_registry.h"
+#include "../xrEngine/x_ray.h"
 #include "ai_debug.h"
 
 CALifeObjectRegistry::CALifeObjectRegistry(LPCSTR section)
@@ -148,6 +149,8 @@ void CALifeObjectRegistry::load(IReader& file_stream)
 			continue;
 
 		add(tpSE_Abstract);
+		if ((I & 63u) == 63u)
+			pApp->YieldLoadingHostIfDue();
 	}
 
 	Msg("* %d objects are successfully loaded", m_objects.size());

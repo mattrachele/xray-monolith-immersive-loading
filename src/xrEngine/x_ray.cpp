@@ -1611,11 +1611,7 @@ PROTECT_API void CApplication::LoadDraw()
 
 	if (m_loadingHost.Enabled())
 	{
-		if (!m_loadingHost.YieldIfDue(*this))
-			return;
-
-		LoadingTelemetry::MarkFirstLoadingFrame();
-		LoadingTelemetry::RecordLoadingFrame();
+		YieldLoadingHostIfDue();
 		return;
 	}
 
@@ -1631,6 +1627,19 @@ PROTECT_API void CApplication::LoadDraw()
 	Device.End();
 	LoadingTelemetry::MarkFirstLoadingFrame();
 	LoadingTelemetry::RecordLoadingFrame();
+}
+
+bool CApplication::YieldLoadingHostIfDue()
+{
+	if (!m_loadingHost.Enabled() || g_appLoaded)
+		return false;
+
+	if (!m_loadingHost.YieldIfDue(*this))
+		return false;
+
+	LoadingTelemetry::MarkFirstLoadingFrame();
+	LoadingTelemetry::RecordLoadingFrame();
+	return true;
 }
 
 void CApplication::DrawLoadingHost(const SLoadingHostFrame& frame)

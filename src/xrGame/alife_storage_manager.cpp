@@ -154,12 +154,15 @@ void CALifeStorageManager::load(void* buffer, const u32& buffer_size, LPCSTR fil
 	{
 		LoadingTelemetryScope creation_scope("save.object_creation");
 		creation_scope.SetUnits(objects().objects().size());
+		u32 completed = 0;
 		for (I = B; I != E; ++I)
 		{
 			ALife::_OBJECT_ID id = (*I).second->ID;
 			(*I).second->ID = server().PerformIDgen(id);
 			VERIFY(id == (*I).second->ID);
 			register_object((*I).second, false);
+			if ((++completed & 63u) == 0)
+				pApp->YieldLoadingHostIfDue();
 		}
 	}
 
@@ -167,8 +170,13 @@ void CALifeStorageManager::load(void* buffer, const u32& buffer_size, LPCSTR fil
 
 	can_register_objects(true);
 
+	u32 registered = 0;
 	for (I = B; I != E; ++I)
+	{
 		(*I).second->on_register();
+		if ((++registered & 63u) == 0)
+			pApp->YieldLoadingHostIfDue();
+	}
 
 	if (!g_pGameLevel)
 		return;

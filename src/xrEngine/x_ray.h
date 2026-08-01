@@ -64,6 +64,7 @@ public:
 	void LoadStage();
 	void LoadSwitch();
 	void LoadDraw();
+	bool YieldLoadingHostIfDue();
 	void DrawLoadingScreenInActiveFrame();
 	void DrawLoadingHost(const SLoadingHostFrame& frame) override;
 
