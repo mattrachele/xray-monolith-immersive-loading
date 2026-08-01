@@ -352,7 +352,6 @@ void LoadingTelemetry::EndSpan(LoadingTelemetryToken& token, u64 units, u64 byte
 		<< ",\"bytes\":" << bytes
 		<< "}";
 	emit_line(json.str().c_str());
-	Msg("* [loading-telemetry] %s %.3f ms", token.task_id, ticks_to_ms(end_ticks - token.start_ticks));
 	token.active = false;
 }
 
